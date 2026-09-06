@@ -17,6 +17,7 @@
     "docker:down": "docker-compose down"
   },
   "devDependencies": {
+    "@vercel/node": "^3.0.0",
     "concurrently": "^8.2.2"
   }
 }

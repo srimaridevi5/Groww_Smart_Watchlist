@@ -85,6 +85,17 @@ export function useWatchlists(activeWatchlistId?: string) {
     },
   });
 
+  // 8. Delete Watchlist mutation
+  const deleteWatchlistMutation = useMutation({
+    mutationFn: async (watchlistId: string) => {
+      const res = await apiClient.delete(`/watchlists/${watchlistId}`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['watchlists'] });
+    },
+  });
+
   return {
     watchlists: watchlistsQuery.data || [],
     isLoadingWatchlists: watchlistsQuery.isLoading,
@@ -93,6 +104,7 @@ export function useWatchlists(activeWatchlistId?: string) {
     changes: changeDetectionQuery.data || [],
     isLoadingChanges: changeDetectionQuery.isLoading,
     createWatchlist: createWatchlistMutation.mutateAsync,
+    deleteWatchlist: deleteWatchlistMutation.mutateAsync,
     addStock: addStockMutation.mutateAsync,
     removeStock: removeStockMutation.mutateAsync,
     recordSnapshot: recordSnapshotMutation.mutateAsync,

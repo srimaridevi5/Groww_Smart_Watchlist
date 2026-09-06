@@ -11,7 +11,7 @@ export class WatchlistService {
   ) {}
 
   async getUserWatchlists(userId: string) {
-    const watchlists = await this.prisma.watchlist.findMany({
+    let watchlists = await this.prisma.watchlist.findMany({
       where: { userId },
       include: {
         items: {
@@ -21,11 +21,35 @@ export class WatchlistService {
       orderBy: { createdAt: 'asc' },
     });
 
+    // Auto-create a default watchlist if the user has none
+    if (watchlists.length === 0) {
+      const defaultWatchlist = await this.prisma.watchlist.create({
+        data: {
+          userId,
+          name: 'My Watchlist',
+          isDefault: true,
+          items: {
+            create: [
+              { stockSymbol: 'RELIANCE', displayOrder: 0 },
+              { stockSymbol: 'TCS', displayOrder: 1 },
+              { stockSymbol: 'HDFCBANK', displayOrder: 2 },
+            ],
+          },
+        },
+        include: {
+          items: {
+            orderBy: { displayOrder: 'asc' },
+          },
+        },
+      });
+      watchlists = [defaultWatchlist];
+    }
+
     return watchlists;
   }
 
   async getWatchlistById(userId: string, watchlistId: string) {
-    const watchlist = await this.prisma.watchlist.findFirst({
+    let watchlist = await this.prisma.watchlist.findFirst({
       where: { id: watchlistId, userId },
       include: {
         items: {
@@ -33,6 +57,18 @@ export class WatchlistService {
         },
       },
     });
+
+    if (!watchlist) {
+      // Fallback to first watchlist for this user
+      watchlist = await this.prisma.watchlist.findFirst({
+        where: { userId },
+        include: {
+          items: {
+            orderBy: { displayOrder: 'asc' },
+          },
+        },
+      });
+    }
 
     if (!watchlist) {
       throw new NotFoundException('Watchlist not found');
@@ -98,19 +134,34 @@ export class WatchlistService {
   }
 
   async addStockToWatchlist(userId: string, watchlistId: string, symbol: string) {
-    const watchlist = await this.prisma.watchlist.findFirst({
+    let watchlist = await this.prisma.watchlist.findFirst({
       where: { id: watchlistId, userId },
     });
 
-    if (!watchlist) throw new NotFoundException('Watchlist not found');
+    if (!watchlist) {
+      watchlist = await this.prisma.watchlist.findFirst({
+        where: { userId },
+      });
+    }
 
+    if (!watchlist) {
+      watchlist = await this.prisma.watchlist.create({
+        data: {
+          userId,
+          name: 'My Watchlist',
+          isDefault: true,
+        },
+      });
+    }
+
+    const targetWatchlistId = watchlist.id;
     const formattedSymbol = symbol.trim().toUpperCase();
 
     // 1. Check for Duplicate Additions explicitly
     const existingItem = await this.prisma.watchlistItem.findUnique({
       where: {
         watchlistId_stockSymbol: {
-          watchlistId,
+          watchlistId: targetWatchlistId,
           stockSymbol: formattedSymbol,
         },
       },
@@ -140,7 +191,7 @@ export class WatchlistService {
     }
 
     const maxOrder = await this.prisma.watchlistItem.aggregate({
-      where: { watchlistId },
+      where: { watchlistId: targetWatchlistId },
       _max: { displayOrder: true },
     });
 
@@ -148,7 +199,7 @@ export class WatchlistService {
 
     return this.prisma.watchlistItem.create({
       data: {
-        watchlistId,
+        watchlistId: targetWatchlistId,
         stockSymbol: formattedSymbol,
         displayOrder: nextOrder,
       },
@@ -156,9 +207,15 @@ export class WatchlistService {
   }
 
   async removeStockFromWatchlist(userId: string, watchlistId: string, symbol: string) {
-    const watchlist = await this.prisma.watchlist.findFirst({
+    let watchlist = await this.prisma.watchlist.findFirst({
       where: { id: watchlistId, userId },
     });
+
+    if (!watchlist) {
+      watchlist = await this.prisma.watchlist.findFirst({
+        where: { userId },
+      });
+    }
 
     if (!watchlist) throw new NotFoundException('Watchlist not found');
 
@@ -166,7 +223,7 @@ export class WatchlistService {
 
     await this.prisma.watchlistItem.deleteMany({
       where: {
-        watchlistId,
+        watchlistId: watchlist.id,
         stockSymbol: formattedSymbol,
       },
     });

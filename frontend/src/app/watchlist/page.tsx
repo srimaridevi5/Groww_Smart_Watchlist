@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   FolderPlus,
   Layers,
+  Trash2,
 } from 'lucide-react';
 
 export default function WatchlistPage() {
@@ -37,6 +38,7 @@ export default function WatchlistPage() {
     changes,
     isLoadingChanges,
     createWatchlist,
+    deleteWatchlist,
     addStock,
     removeStock,
     recordSnapshot,
@@ -44,7 +46,7 @@ export default function WatchlistPage() {
 
   // Auto-select initial default watchlist
   useEffect(() => {
-    if (watchlists.length > 0 && !activeWatchlistId) {
+    if (watchlists.length > 0 && (!activeWatchlistId || !watchlists.some((w) => w.id === activeWatchlistId))) {
       const defaultWl = watchlists.find((w) => w.isDefault) || watchlists[0];
       setActiveWatchlistId(defaultWl.id);
     }
@@ -121,21 +123,44 @@ export default function WatchlistPage() {
             {watchlists.map((wl) => {
               const isActive = wl.id === activeWatchlistId;
               return (
-                <button
+                <div
                   key={wl.id}
-                  onClick={() => setActiveWatchlistId(wl.id)}
-                  className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all flex items-center gap-2 ${
+                  className={`px-3.5 py-1.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all flex items-center gap-2 ${
                     isActive
                       ? 'bg-[#141822] text-[#00D09C] border border-[#00D09C]/40 shadow-lg shadow-[#00D09C]/5'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-[#141822]/60'
                   }`}
                 >
-                  <Layers className="h-4 w-4" />
-                  {wl.name}
-                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
-                    {wl.items.length}
-                  </span>
-                </button>
+                  <button
+                    onClick={() => setActiveWatchlistId(wl.id)}
+                    className="flex items-center gap-2"
+                  >
+                    <Layers className="h-4 w-4" />
+                    {wl.name}
+                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
+                      {wl.items.length}
+                    </span>
+                  </button>
+
+                  {!wl.isDefault && watchlists.length > 1 && (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (confirm(`Delete watchlist "${wl.name}"?`)) {
+                          await deleteWatchlist(wl.id);
+                          if (isActive) {
+                            const fallbackWl = watchlists.find((w) => w.id !== wl.id);
+                            if (fallbackWl) setActiveWatchlistId(fallbackWl.id);
+                          }
+                        }
+                      }}
+                      className="ml-1 p-1 rounded-md text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+                      title="Delete Watchlist"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               );
             })}
 
