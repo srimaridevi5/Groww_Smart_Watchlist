@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Environment Variables
+.env
+.env.local
+
+# NestJS Build Output
+dist/
+
+# SQLite Databases
+*.db
+*.db-journal
+dev.db
+
+# Logs
+*.log
+
+# Vitest Coverage
+coverage/
+
+# OS Files
+.DS_Store
+Thumbs.db
