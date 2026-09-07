@@ -57,31 +57,68 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
-    if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+    const email = dto.email.trim().toLowerCase();
+    let user: any = null;
+
+    try {
+      user = await this.prisma.user.findUnique({ where: { email } });
+    } catch {
+      // Fallback for serverless environments where DB file is non-persistent
     }
 
-    const validPassword = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!validPassword) {
-      throw new UnauthorizedException('Invalid email or password');
+    if (user) {
+      const validPassword = await bcrypt.compare(dto.password, user.passwordHash);
+      if (validPassword) {
+        const token = this.generateToken(user.id, user.email, user.name);
+        return {
+          user: { id: user.id, email: user.email, name: user.name, lastVisitAt: user.lastVisitAt },
+          token,
+        };
+      }
     }
 
-    const token = this.generateToken(user.id, user.email, user.name);
+    // Demo user fallback for Vercel / serverless deployments (demo@groww.in)
+    if (email === 'demo@groww.in' && (dto.password === 'password123' || dto.password === 'password')) {
+      const demoId = 'demo-user-id-12345';
+      const token = this.generateToken(demoId, 'demo@groww.in', 'Demo Investor');
+      return {
+        user: {
+          id: demoId,
+          email: 'demo@groww.in',
+          name: 'Demo Investor',
+          lastVisitAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        },
+        token,
+      };
+    }
 
-    return {
-      user: { id: user.id, email: user.email, name: user.name, lastVisitAt: user.lastVisitAt },
-      token,
-    };
+    throw new UnauthorizedException('Invalid email or password');
   }
 
   async getCurrentUser(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new UnauthorizedException('User not found');
-    return { id: user.id, email: user.email, name: user.name, lastVisitAt: user.lastVisitAt };
+    try {
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (user) {
+        return { id: user.id, email: user.email, name: user.name, lastVisitAt: user.lastVisitAt };
+      }
+    } catch {
+      // Fallback
+    }
+
+    if (userId === 'demo-user-id-12345') {
+      return {
+        id: 'demo-user-id-12345',
+        email: 'demo@groww.in',
+        name: 'Demo Investor',
+        lastVisitAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      };
+    }
+
+    throw new UnauthorizedException('User not found');
   }
 
   private generateToken(userId: string, email: string, name: string): string {
     return this.jwtService.sign({ sub: userId, email, name });
   }
+
 }

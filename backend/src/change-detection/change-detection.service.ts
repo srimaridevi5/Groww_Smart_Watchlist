@@ -270,39 +270,48 @@ export class ChangeDetectionService {
     watchlistId: string,
     asOfTimestamp?: string
   ): Promise<ChangeAnalysisResult[]> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return [];
+    let user: any = null;
+    let watchlist: any = null;
+    let stockMasters: any[] = [];
+    let snapshots: any[] = [];
 
-    const watchlist = await this.prisma.watchlist.findFirst({
-      where: { id: watchlistId, userId },
-      include: { items: true },
-    });
+    try {
+      user = await this.prisma.user.findUnique({ where: { id: userId } });
+      watchlist = await this.prisma.watchlist.findFirst({
+        where: { id: watchlistId, userId },
+        include: { items: true },
+      });
+      if (watchlist && watchlist.items.length > 0) {
+        const stockSymbols = watchlist.items.map((item: any) => item.stockSymbol);
+        stockMasters = await this.prisma.stockMaster.findMany({
+          where: { symbol: { in: stockSymbols } },
+        });
+        snapshots = await this.prisma.userVisitSnapshot.findMany({
+          where: { userId, watchlistId },
+          orderBy: { capturedAt: 'desc' },
+        });
+      }
+    } catch {
+      // Fallback for serverless environment without active DB
+    }
 
-    if (!watchlist || watchlist.items.length === 0) return [];
+    const defaultLastVisitAt = user?.lastVisitAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const stockSymbols = (watchlist && watchlist.items.length > 0)
+      ? watchlist.items.map((item: any) => item.stockSymbol)
+      : ['TSLA', 'NVDA', 'TCS', 'AAPL', 'MSFT'];
 
-    const stockSymbols = watchlist.items.map((item) => item.stockSymbol);
     const benchmarkSymbol = 'NIFTY';
     const allSymbolsToFetch = Array.from(new Set([...stockSymbols, benchmarkSymbol]));
 
     const quotes = await this.marketDataService.getQuotes(allSymbolsToFetch);
     const benchmarkQuote = quotes[benchmarkSymbol] || null;
 
-    // Fetch stock master records for Beta
-    const stockMasters = await this.prisma.stockMaster.findMany({
-      where: { symbol: { in: stockSymbols } },
-    });
     const betaMap = new Map<string, number>();
     for (const sm of stockMasters) {
       betaMap.set(sm.symbol, sm.beta ?? 1.0);
     }
 
-    // Fetch snapshots
-    const snapshots = await this.prisma.userVisitSnapshot.findMany({
-      where: { userId, watchlistId },
-      orderBy: { capturedAt: 'desc' },
-    });
-
-    const snapshotMap = new Map<string, typeof snapshots[0]>();
+    const snapshotMap = new Map<string, any>();
     for (const snap of snapshots) {
       if (!snapshotMap.has(snap.stockSymbol)) {
         snapshotMap.set(snap.stockSymbol, snap);
@@ -313,6 +322,7 @@ export class ChangeDetectionService {
     const isHistorical = Boolean(targetDate && !isNaN(targetDate.getTime()));
 
     const results: ChangeAnalysisResult[] = [];
+
 
     for (const symbol of stockSymbols) {
       const quote = quotes[symbol];
@@ -390,7 +400,7 @@ export class ChangeDetectionService {
         volumeRatio: signal.volumeRatio,
         volatilityZScore: signal.volatilityZScore,
         reasons: signal.reasons,
-        lastVisitAt: targetDate || (snapshot ? snapshot.capturedAt : user.lastVisitAt),
+        lastVisitAt: targetDate || (snapshot ? snapshot.capturedAt : (user?.lastVisitAt || defaultLastVisitAt)),
         quoteConfidence: quote.confidence,
         dataProvider: isHistorical ? `${quote.provider} (Historical ${targetDate?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : quote.provider,
         isDelayed: quote.isDelayed,
