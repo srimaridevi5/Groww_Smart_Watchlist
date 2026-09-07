@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "outputDirectory": "frontend/.next",
   "builds": [
     {
       "src": "api/index.ts",
@@ -21,3 +22,4 @@
     }
   ]
 }
+
