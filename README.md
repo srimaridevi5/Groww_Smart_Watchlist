@@ -4,7 +4,7 @@ A full-stack, production-quality Smart Market Watchlist application built for Gr
 
 ---
 
-## 🌟 Key Architecture & Product Decisions
+## Key Architecture & Product Decisions
 
 ### 1. Change Detection Engine (Normalized 0.00 – 1.00 Score)
 To avoid combining signals with disparate scales (percentage movement, volume ratios, Z-scores), each indicator is normalized into a $[0.00, 1.00]$ range before calculating the weighted score:
@@ -18,8 +18,8 @@ $$\text{ChangeScore} = 0.40 \cdot S_{\text{Price}} + 0.25 \cdot S_{\text{Volume}
 - **Technical Score ($S_{\text{Technical}}$)**: Breakout (`1.0`), Near Threshold (`0.6`), Neutral (`0.0`).
 
 #### Severity Tiers:
-- **`0.80 – 1.00` (High Attention)**: High-priority glowing purple/pink banner (e.g. `⚡ Surge +8.4% on 2.4x Vol`).
-- **`0.60 – 0.80` (Significant)**: Highlighted active movement card (`🔥 Significant`).
+- **`0.80 – 1.00` (High Attention)**: High-priority glowing purple/pink banner (e.g. `Surge +8.4% on 2.4x Vol`).
+- **`0.60 – 0.80` (Significant)**: Highlighted active movement card (`Significant`).
 - **`0.30 – 0.60` (Noteworthy)**: Mild attention indicator.
 - **`0.00 – 0.30` (Normal)**: Standard baseline tick.
 
@@ -59,7 +59,7 @@ The system captures full snapshot context (`price`, `volume`, `volatility`, `fif
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Frontend**: Next.js 14+ (App Router), React 18, TypeScript, Tailwind CSS, TanStack Query v5, Recharts, Lucide Icons, Groww visual design system.
 - **Backend**: Node.js, NestJS, TypeScript, Passport JWT Authentication, class-validator DTOs, Vitest.
@@ -69,7 +69,7 @@ The system captures full snapshot context (`price`, `volume`, `volatility`, `fif
 
 ---
 
-## 🚀 Quick Start Guide (VS Code Local Execution)
+##  Quick Start Guide (VS Code Local Execution)
 
 ### Prerequisites
 - Node.js v18.0+ or v20.0+
@@ -121,7 +121,7 @@ This starts both servers concurrently:
 
 ---
 
-## 🐋 Option B: Run via Docker Compose
+## Option B: Run via Docker Compose
 
 To spin up PostgreSQL, Redis, Backend, and Frontend in containers:
 ```bash
@@ -130,7 +130,7 @@ docker compose up --build
 
 ---
 
-## 🧪 Running Tests
+## Running Tests
 
 Run backend unit tests for Change Detection scoring and Quote Resolver:
 ```bash
@@ -139,7 +139,7 @@ npm run test
 
 ---
 
-## 📡 Core API Endpoints
+## Core API Endpoints
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |

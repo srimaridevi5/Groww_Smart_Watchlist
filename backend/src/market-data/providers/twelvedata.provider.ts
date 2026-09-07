@@ -149,32 +149,46 @@ export class TwelveDataMarketDataProvider implements IMarketDataProvider {
   }
 
   async getHistoricalData(symbol: string, timeframe = '1D'): Promise<HistoricalBar[]> {
-    if (!this.apiKey) return [];
+    if (!this.apiKey || Date.now() < this.rateLimitedUntil) return [];
 
     try {
+      const apiSymbol = this.formatSymbolForApi(symbol);
       const response = await axios.get(`${this.baseUrl}/time_series`, {
         params: {
-          symbol,
+          symbol: apiSymbol,
           interval: '1day',
           outputsize: 30,
           apikey: this.apiKey,
         },
-        timeout: 5000,
+        timeout: 4000,
       });
 
-      const values = response.data?.values;
+      const data = response.data;
+      if (data.code === 429 || data.status === 'error') {
+        this.rateLimitedUntil = Date.now() + 60000;
+        return [];
+      }
+
+      const values = data?.values;
       if (!Array.isArray(values)) return [];
 
-      return values.map((v: any) => ({
-        timestamp: new Date(v.datetime).getTime(),
-        open: parseFloat(v.open),
-        high: parseFloat(v.high),
-        low: parseFloat(v.low),
-        close: parseFloat(v.close),
-        volume: parseInt(v.volume || '0', 10),
-      })).reverse();
-    } catch {
+      return values
+        .map((v: any) => ({
+          timestamp: new Date(v.datetime).getTime(),
+          open: parseFloat(v.open),
+          high: parseFloat(v.high),
+          low: parseFloat(v.low),
+          close: parseFloat(v.close),
+          volume: parseInt(v.volume || '0', 10),
+        }))
+        .filter((bar: HistoricalBar) => !isNaN(bar.timestamp) && !isNaN(bar.close))
+        .reverse();
+    } catch (err: any) {
+      if (err.response?.status === 429) {
+        this.rateLimitedUntil = Date.now() + 60000;
+      }
       return [];
     }
   }
+
 }

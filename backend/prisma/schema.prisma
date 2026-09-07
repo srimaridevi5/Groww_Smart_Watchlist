@@ -1,11 +1,10 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]
+  provider = "prisma-client-js"
 }
 
 model User {
@@ -37,12 +36,12 @@ model Watchlist {
 }
 
 model WatchlistItem {
-  id          String    @id @default(uuid())
-  watchlistId String
-  stockSymbol String
+  id           String    @id @default(uuid())
+  watchlistId  String
+  stockSymbol  String
   displayOrder Int       @default(0)
-  addedAt     DateTime  @default(now())
-  watchlist   Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  addedAt      DateTime  @default(now())
+  watchlist    Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
 
   @@unique([watchlistId, stockSymbol])
   @@map("watchlist_items")

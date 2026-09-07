@@ -129,9 +129,14 @@ export class MarketDataService {
    * Fetches historical candles for chart drawer.
    */
   async getHistoricalBars(symbol: string): Promise<HistoricalBar[]> {
-    const bars = await this.twelveData.getHistoricalData(symbol);
-    if (bars.length > 0) return bars;
+    try {
+      const bars = await this.twelveData.getHistoricalData(symbol);
+      if (bars && bars.length > 0) return bars;
+    } catch (err: any) {
+      this.logger.debug(`TwelveData historical bars fetch error for ${symbol}: ${err.message}`);
+    }
 
     return await this.mockProvider.getHistoricalData(symbol);
   }
+
 }

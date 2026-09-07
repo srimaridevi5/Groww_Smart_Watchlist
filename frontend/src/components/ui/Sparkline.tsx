@@ -7,21 +7,33 @@ interface SparklineProps {
   height?: number;
 }
 
+const DEFAULT_POSITIVE_DATA = [10, 12, 11, 14, 13, 16, 15, 18];
+const DEFAULT_NEGATIVE_DATA = [18, 16, 15, 13, 14, 11, 12, 10];
+
 export function Sparkline({
-  data = [10, 12, 11, 14, 13, 16, 15, 18],
+  data,
   isPositive = true,
   width = 80,
   height = 28,
 }: SparklineProps) {
-  if (!data || data.length < 2) return null;
+  const chartData = data && data.length >= 2
+    ? data
+    : (isPositive ? DEFAULT_POSITIVE_DATA : DEFAULT_NEGATIVE_DATA);
 
-  const min = Math.min(...data);
-  const max = Math.max(...data);
+  let finalData = [...chartData];
+  if (!isPositive && finalData[finalData.length - 1] >= finalData[0]) {
+    finalData = finalData.reverse();
+  } else if (isPositive && finalData[finalData.length - 1] <= finalData[0]) {
+    finalData = finalData.reverse();
+  }
+
+  const min = Math.min(...finalData);
+  const max = Math.max(...finalData);
   const range = max - min || 1;
 
-  const points = data
+  const points = finalData
     .map((val, idx) => {
-      const x = (idx / (data.length - 1)) * width;
+      const x = (idx / (finalData.length - 1)) * width;
       const y = height - ((val - min) / range) * (height - 4) - 2;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
@@ -42,3 +54,4 @@ export function Sparkline({
     </svg>
   );
 }
+

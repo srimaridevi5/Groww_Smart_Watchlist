@@ -63,6 +63,9 @@ export interface ChangeAnalysisResult {
   isMarketNormalized?: boolean;
   benchmarkSymbol?: string;
   benchmarkChangePct?: number;
+  // Optional Time Travel Metadata
+  asOfTimestamp?: string;
+  isHistorical?: boolean;
 }
 
 export interface HistoricalBar {
@@ -72,4 +75,33 @@ export interface HistoricalBar {
   low: number;
   close: number;
   volume: number;
+}
+
+export interface SnapshotSession {
+  id: string;
+  capturedAt: string;
+  formattedTime: string;
+}
+
+export interface TimePointComparisonResult {
+  symbol: string;
+  name: string;
+  timeA: string;
+  timeB: string;
+  priceA: number;
+  priceB: number;
+  priceDelta: number;
+  priceDeltaPct: number;
+  volumeA: number;
+  volumeB: number;
+  volumeDeltaPct: number;
+  scoreA: number;
+  scoreB: number;
+  scoreDelta: number;
+  alphaA?: number;
+  alphaB?: number;
+  alphaDelta?: number;
+  severityA: 'HIGH_ATTENTION' | 'SIGNIFICANT' | 'NOTEWORTHY' | 'NORMAL';
+  severityB: 'HIGH_ATTENTION' | 'SIGNIFICANT' | 'NOTEWORTHY' | 'NORMAL';
+  reasons: string[];
 }

@@ -3,23 +3,27 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useWatchlists } from '@/hooks/useWatchlists';
-import { ChangeAnalysisResult } from '@/types';
+import { ChangeAnalysisResult, TimePointComparisonResult } from '@/types';
+import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ChangeSummaryBanner } from '@/components/watchlist/ChangeSummaryBanner';
 import { WatchlistTable } from '@/components/watchlist/WatchlistTable';
 import { AddStockModal } from '@/components/watchlist/AddStockModal';
 import { StockDetailDrawer } from '@/components/watchlist/StockDetailDrawer';
+import { TimeTravelBar, TimeTravelMode } from '@/components/watchlist/TimeTravelBar';
+import { TimeComparisonTable } from '@/components/watchlist/TimeComparisonTable';
 import {
   TrendingUp,
   Plus,
   LogOut,
-  RefreshCw,
-  Search,
   SlidersHorizontal,
   FolderPlus,
   Layers,
   Trash2,
+  History,
+  RotateCcw,
+  Sparkles,
 } from 'lucide-react';
 
 export default function WatchlistPage() {
@@ -31,11 +35,23 @@ export default function WatchlistPage() {
   const [newWatchlistName, setNewWatchlistName] = useState('');
   const [isCreatingWatchlist, setIsCreatingWatchlist] = useState(false);
 
+  // Time-Based Market Viewer & Comparison State
+  const [timeTravelMode, setTimeTravelMode] = useState<TimeTravelMode>('LIVE');
+  const [selectedTimestamp, setSelectedTimestamp] = useState<string | null>(null);
+  const [timeA, setTimeA] = useState<string>(() => new Date().toISOString());
+  const [timeB, setTimeB] = useState<string>(() => new Date().toISOString());
+
+  const [historicalChanges, setHistoricalChanges] = useState<ChangeAnalysisResult[]>([]);
+  const [isLoadingHistorical, setIsLoadingHistorical] = useState(false);
+
+  const [comparisons, setComparisons] = useState<TimePointComparisonResult[]>([]);
+  const [isLoadingComparisons, setIsLoadingComparisons] = useState(false);
+
   const {
     watchlists,
     isLoadingWatchlists,
     activeWatchlist,
-    changes,
+    changes: liveChanges,
     isLoadingChanges,
     createWatchlist,
     deleteWatchlist,
@@ -52,6 +68,36 @@ export default function WatchlistPage() {
     }
   }, [watchlists, activeWatchlistId]);
 
+  // Fetch historical changes when selectedTimestamp or activeWatchlistId changes in HISTORICAL mode
+  useEffect(() => {
+    if (timeTravelMode !== 'HISTORICAL' || !activeWatchlistId || !selectedTimestamp) return;
+
+    setIsLoadingHistorical(true);
+    apiClient
+      .get(`/change-detection/watchlist/${activeWatchlistId}?asOfTimestamp=${encodeURIComponent(selectedTimestamp)}`)
+      .then((res) => setHistoricalChanges(res.data))
+      .catch(() => setHistoricalChanges([]))
+      .finally(() => setIsLoadingHistorical(false));
+  }, [timeTravelMode, activeWatchlistId, selectedTimestamp]);
+
+  // Fetch comparison data when timeA or timeB changes in COMPARE mode
+  const fetchComparisonData = (isoA: string, isoB: string) => {
+    if (!activeWatchlistId) return;
+
+    setIsLoadingComparisons(true);
+    apiClient
+      .get(`/change-detection/compare/${activeWatchlistId}?timeA=${encodeURIComponent(isoA)}&timeB=${encodeURIComponent(isoB)}`)
+      .then((res) => setComparisons(res.data))
+      .catch(() => setComparisons([]))
+      .finally(() => setIsLoadingComparisons(false));
+  };
+
+  useEffect(() => {
+    if (timeTravelMode === 'COMPARE' && activeWatchlistId) {
+      fetchComparisonData(timeA, timeB);
+    }
+  }, [timeTravelMode, activeWatchlistId]);
+
   if (authLoading || isLoadingWatchlists) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0B0E14] text-slate-400 text-sm">
@@ -60,8 +106,11 @@ export default function WatchlistPage() {
     );
   }
 
+  // Active changes list (live vs historical)
+  const activeChangesList = timeTravelMode === 'HISTORICAL' ? historicalChanges : liveChanges;
+
   // Filter change results based on active tab
-  const filteredChanges = changes.filter((item) => {
+  const filteredChanges = activeChangesList.filter((item) => {
     if (activeFilter === 'HIGH_ATTENTION') return item.severityTier === 'HIGH_ATTENTION';
     if (activeFilter === 'SIGNIFICANT') return item.severityTier === 'SIGNIFICANT';
     if (activeFilter === 'BREAKOUT') return item.technicalSignal !== 'NONE';
@@ -210,31 +259,112 @@ export default function WatchlistPage() {
           </div>
         </div>
 
-        {/* Smart Change Summary Banner */}
-        <ChangeSummaryBanner
-          changes={changes}
-          activeFilter={activeFilter}
-          onFilterChange={setActiveFilter}
-          onRecordSnapshot={() => activeWatchlistId && recordSnapshot(activeWatchlistId)}
-          isRecordingSnapshot={false}
+        {/* Time-Based Market Data & Comparison Toolbar */}
+        <TimeTravelBar
+          watchlistId={activeWatchlistId}
+          mode={timeTravelMode}
+          onModeChange={setTimeTravelMode}
+          selectedTimestamp={selectedTimestamp}
+          onTimestampChange={setSelectedTimestamp}
+          timeA={timeA}
+          timeB={timeB}
+          onTimeAChange={setTimeA}
+          onTimeBChange={setTimeB}
+          onCompareSubmit={fetchComparisonData}
         />
 
-        {/* Watchlist Table */}
+        {/* Active Mode Status Indicator Banners */}
+        {timeTravelMode === 'HISTORICAL' && selectedTimestamp && (
+          <div className="rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-950/40 via-[#141822] to-amber-950/20 p-3.5 text-xs text-amber-200 flex items-center justify-between shadow-lg">
+            <div className="flex items-center gap-2.5">
+              <History className="h-4 w-4 text-amber-400 shrink-0" />
+              <div>
+                <span className="font-bold">Time Travel Viewer:</span> Showing market data captured as of{' '}
+                <strong className="text-white">
+                  {new Date(selectedTimestamp).toLocaleString(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })}
+                </strong>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setTimeTravelMode('LIVE');
+                setSelectedTimestamp(null);
+              }}
+              className="rounded-lg bg-amber-500/20 px-3 py-1 text-xs font-bold text-amber-300 hover:bg-amber-500/30 transition-colors flex items-center gap-1 shrink-0"
+            >
+              <RotateCcw className="h-3 w-3" /> Switch to Live Market
+            </button>
+          </div>
+        )}
+
+        {timeTravelMode === 'COMPARE' && (
+          <div className="rounded-xl border border-purple-500/40 bg-gradient-to-r from-purple-950/40 via-[#141822] to-purple-950/20 p-3.5 text-xs text-purple-200 flex items-center justify-between shadow-lg">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className="h-4 w-4 text-purple-400 shrink-0" />
+              <div>
+                <span className="font-bold">Timestamp Comparison Mode:</span> Comparing existing stock metrics between{' '}
+                <strong className="text-white">
+                  {new Date(timeA).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </strong>{' '}
+                and{' '}
+                <strong className="text-[#00D09C]">
+                  {new Date(timeB).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </strong>
+              </div>
+            </div>
+            <button
+              onClick={() => setTimeTravelMode('LIVE')}
+              className="rounded-lg bg-purple-500/20 px-3 py-1 text-xs font-bold text-purple-300 hover:bg-purple-500/30 transition-colors flex items-center gap-1 shrink-0"
+            >
+              <RotateCcw className="h-3 w-3" /> Exit Comparison
+            </button>
+          </div>
+        )}
+
+        {/* Change Summary Banner (Live & Historical Modes) */}
+        {timeTravelMode !== 'COMPARE' && (
+          <ChangeSummaryBanner
+            changes={filteredChanges}
+            activeFilter={activeFilter}
+            onFilterChange={setActiveFilter}
+            onRecordSnapshot={() => activeWatchlistId && recordSnapshot(activeWatchlistId)}
+            isRecordingSnapshot={false}
+          />
+        )}
+
+        {/* Watchlist Table or Comparison Table */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-              <SlidersHorizontal className="h-4 w-4 text-[#00D09C]" /> Watchlist Securities ({filteredChanges.length})
+              <SlidersHorizontal className="h-4 w-4 text-[#00D09C]" />
+              {timeTravelMode === 'COMPARE'
+                ? `Timestamp Metric Comparisons (${comparisons.length} Securities)`
+                : `Watchlist Securities (${filteredChanges.length})`}
             </h3>
             <span className="text-xs text-slate-400">
-              Click any stock row for deep-dive rationale & 30-day price trend chart
+              Click any stock row for deep-dive rationale & historical trend chart
             </span>
           </div>
 
-          <WatchlistTable
-            items={filteredChanges}
-            onSelectStock={setSelectedStock}
-            onRemoveStock={(symbol) => activeWatchlistId && removeStock({ watchlistId: activeWatchlistId, symbol })}
-          />
+          {timeTravelMode === 'COMPARE' ? (
+            <TimeComparisonTable
+              comparisons={comparisons}
+              isLoading={isLoadingComparisons}
+              onSelectStock={(symbol) => {
+                const stock = liveChanges.find((s) => s.symbol === symbol) || filteredChanges.find((s) => s.symbol === symbol);
+                if (stock) setSelectedStock(stock);
+              }}
+            />
+          ) : (
+            <WatchlistTable
+              items={filteredChanges}
+              onSelectStock={setSelectedStock}
+              onRemoveStock={(symbol) => activeWatchlistId && removeStock({ watchlistId: activeWatchlistId, symbol })}
+            />
+          )}
         </div>
       </main>
 
@@ -250,7 +380,7 @@ export default function WatchlistPage() {
         existingSymbols={existingSymbols}
       />
 
-      {/* Stock Deep-Dive Rationale Drawer */}
+      {/* Stock Deep-Dive Rationale Drawer & Contextual Explanation Panel */}
       <StockDetailDrawer stock={selectedStock} onClose={() => setSelectedStock(null)} />
     </div>
   );
